@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  base: '/lowfodmap-guardian/',
   plugins: [
     react(),
     VitePWA({
@@ -15,7 +16,7 @@ export default defineConfig({
         theme_color: '#e6b422',
         background_color: '#fffaf0',
         display: 'standalone',
-        start_url: '/',
+        start_url: '/lowfodmap-guardian/',
         icons: [
           {
             src: 'pwa-192.png',
@@ -36,7 +37,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        navigateFallback: '/index.html',
+        navigateFallback: '/lowfodmap-guardian/index.html',
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
       },
     }),
