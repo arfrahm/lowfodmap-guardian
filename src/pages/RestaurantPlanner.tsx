@@ -1,7 +1,12 @@
 import { useMemo, useState } from 'react';
 import { SAMPLE_RESTAURANTS } from '../data/sampleRestaurants';
 import { analyzeMenuPaste, analyzeSampleRestaurant } from '../lib/restaurantAnalyze';
-import type { RestaurantResult } from '../types';
+import {
+  dishesToMenuText,
+  fetchMenuFromUrl,
+  searchRestaurantMenus,
+} from '../lib/menuFetch';
+import type { MenuSearchHit, RestaurantResult } from '../types';
 import { DishCard } from '../components/DishCard';
 import { Disclaimer } from '../components/Disclaimer';
 
@@ -11,9 +16,13 @@ export function RestaurantPlanner() {
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
   const [menuText, setMenuText] = useState('');
+  const [menuUrl, setMenuUrl] = useState('');
   const [result, setResult] = useState<RestaurantResult | null>(null);
   const [filter, setFilter] = useState<Filter>('ALL');
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [hits, setHits] = useState<MenuSearchHit[]>([]);
 
   const filteredDishes = useMemo(() => {
     if (!result) return [];
@@ -23,11 +32,13 @@ export function RestaurantPlanner() {
 
   const runPaste = () => {
     setError(null);
+    setInfo(null);
     if (!menuText.trim()) {
-      setError('Paste menu text, or pick a sample restaurant below.');
+      setError('Paste menu text, fetch a URL, search, or pick a sample restaurant below.');
       return;
     }
-    setResult(analyzeMenuPaste(name.trim() || 'Pasted menu', menuText, city.trim() || undefined));
+    const analyzed = analyzeMenuPaste(name.trim() || 'Pasted menu', menuText, city.trim() || undefined);
+    setResult(analyzed);
     setFilter('ALL');
   };
 
@@ -40,13 +51,74 @@ export function RestaurantPlanner() {
     setResult(analyzeSampleRestaurant(sample.name, sample.dishes, sample.city));
     setFilter('ALL');
     setError(null);
+    setInfo('Loaded offline sample menu.');
+    setHits([]);
+  };
+
+  const onSearch = async () => {
+    setError(null);
+    setInfo(null);
+    setBusy('Searching for menus…');
+    try {
+      const { hits: found, note } = await searchRestaurantMenus(name, city);
+      setHits(found);
+      setInfo(note);
+      if (found.length === 0) setError('No matches. Try another name/city, paste a URL, or use a sample.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Search failed.');
+      setHits([]);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const applyFetched = async (url: string, titleHint?: string) => {
+    if (url.startsWith('sample:')) {
+      loadSample(url.slice('sample:'.length));
+      return;
+    }
+    setError(null);
+    setInfo(null);
+    setBusy('Fetching menu page…');
+    try {
+      const fetched = await fetchMenuFromUrl(url);
+      const text = dishesToMenuText(fetched.dishes);
+      setMenuText(text);
+      setMenuUrl(url);
+      if (!name.trim() && fetched.pageTitle) {
+        setName(fetched.pageTitle.split(/[|\-–]/)[0].trim().slice(0, 80));
+      } else if (!name.trim() && titleHint) {
+        setName(titleHint.split(/[|\-–]/)[0].trim().slice(0, 80));
+      }
+      const restaurantName = name.trim() || titleHint?.split(/[|\-–]/)[0].trim() || fetched.pageTitle || 'Menu from URL';
+      const analyzed = analyzeMenuPaste(restaurantName, text, city.trim() || undefined);
+      analyzed.sourceUrl = url;
+      analyzed.sourceNote = fetched.note;
+      setResult(analyzed);
+      setFilter('ALL');
+      setInfo(fetched.note + ' You can edit the menu text and re-analyze.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Fetch failed.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const onFetchUrl = () => {
+    if (!menuUrl.trim()) {
+      setError('Paste a menu page URL first.');
+      return;
+    }
+    void applyFetched(menuUrl.trim());
   };
 
   return (
     <div className="page">
       <header className="page-header">
         <h1>Restaurant planner</h1>
-        <p>Paste a menu (best) or open a sample. Get SAFE / ASK TO MODIFY / AVOID with tips.</p>
+        <p>
+          Search by name, paste a menu link, or paste menu text. Get SAFE / ASK TO MODIFY / AVOID with tips.
+        </p>
       </header>
 
       <div className="card">
@@ -60,12 +132,12 @@ export function RestaurantPlanner() {
               className="input"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Optional"
+              placeholder="e.g. Harbor Grill"
             />
           </div>
           <div>
             <label className="field-label" htmlFor="rest-city">
-              City
+              City / location
             </label>
             <input
               id="rest-city"
@@ -76,6 +148,50 @@ export function RestaurantPlanner() {
             />
           </div>
         </div>
+
+        <div className="btn-row">
+          <button type="button" className="btn primary" onClick={() => void onSearch()} disabled={!!busy}>
+            Search online
+          </button>
+        </div>
+
+        {hits.length > 0 && (
+          <div className="search-hits">
+            <p className="field-label">Search results</p>
+            <ul className="hit-list">
+              {hits.map((h) => (
+                <li key={h.url}>
+                  <button type="button" className="hit-btn" onClick={() => void applyFetched(h.url, h.title)} disabled={!!busy}>
+                    <strong>{h.title}</strong>
+                    <span className="hit-url">{h.url.startsWith('sample:') ? 'Offline sample' : h.url}</span>
+                    {h.snippet ? <span className="hit-snip">{h.snippet}</span> : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <label className="field-label" htmlFor="menu-url">
+          Menu page URL
+        </label>
+        <div className="url-row">
+          <input
+            id="menu-url"
+            className="input"
+            value={menuUrl}
+            onChange={(e) => setMenuUrl(e.target.value)}
+            placeholder="https://…"
+            inputMode="url"
+          />
+          <button type="button" className="btn secondary" onClick={onFetchUrl} disabled={!!busy}>
+            Fetch menu
+          </button>
+        </div>
+        <p className="muted tiny">
+          Static app: pages are loaded through a public CORS proxy. Many restaurants block this — if so, paste menu text
+          below.
+        </p>
 
         <label className="field-label" htmlFor="menu">
           Menu text
@@ -90,7 +206,7 @@ export function RestaurantPlanner() {
         />
 
         <div className="btn-row">
-          <button type="button" className="btn primary" onClick={runPaste}>
+          <button type="button" className="btn primary" onClick={runPaste} disabled={!!busy}>
             Analyze menu
           </button>
           <button
@@ -98,19 +214,24 @@ export function RestaurantPlanner() {
             className="btn ghost"
             onClick={() => {
               setMenuText('');
+              setMenuUrl('');
               setResult(null);
               setError(null);
+              setInfo(null);
+              setHits([]);
             }}
           >
             Clear
           </button>
         </div>
+        {busy && <p className="status-line">{busy}</p>}
+        {info && <p className="status-line">{info}</p>}
         {error && <p className="error-line">{error}</p>}
       </div>
 
       <section className="card">
         <h2 className="section-title">Sample restaurants</h2>
-        <p className="muted">Offline canned menus — useful when you cannot photograph a menu.</p>
+        <p className="muted">Offline canned menus — always available when the web fetch is blocked.</p>
         <div className="sample-grid">
           {SAMPLE_RESTAURANTS.map((r) => (
             <button key={r.id} type="button" className="sample-chip" onClick={() => loadSample(r.id)}>
@@ -136,6 +257,15 @@ export function RestaurantPlanner() {
               {result.dishes.filter((d) => d.verdict === 'ASK_TO_MODIFY').length} modify ·{' '}
               {result.dishes.filter((d) => d.verdict === 'AVOID').length} avoid
             </p>
+            {result.sourceUrl && (
+              <p className="muted tiny">
+                Source:{' '}
+                <a href={result.sourceUrl} target="_blank" rel="noreferrer">
+                  {result.sourceUrl}
+                </a>
+              </p>
+            )}
+            {result.sourceNote && <p className="muted tiny">{result.sourceNote}</p>}
           </div>
 
           <div className="filter-row" role="tablist" aria-label="Filter dishes">

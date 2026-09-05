@@ -41,6 +41,10 @@ export interface LabelAnalysis {
   moderateCount: number;
   lowCount: number;
   unknownCount: number;
+  /** OCR / paste quality heuristic */
+  ocrQuality?: 'good' | 'fair' | 'poor';
+  warnings?: string[];
+  cleanedText?: string;
 }
 
 export interface DishAnalysis {
@@ -66,4 +70,12 @@ export interface RestaurantResult {
   city?: string;
   dishes: DishAnalysis[];
   tips: string[];
+  sourceUrl?: string;
+  sourceNote?: string;
+}
+
+export interface MenuSearchHit {
+  title: string;
+  url: string;
+  snippet?: string;
 }

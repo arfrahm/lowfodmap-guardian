@@ -3,7 +3,7 @@
 Mobile-friendly web app for the **strict low-FODMAP elimination phase**:
 
 1. **Label / ingredient checker** — paste an ingredient list or photograph a label (Tesseract.js OCR) → each ingredient classified **low / moderate / high**, with onion/garlic alerts, overall **SAFE / CAUTION / AVOID**, reasons, and serving guidance.
-2. **Restaurant planner** — paste a menu or open a sample restaurant → each dish **SAFE / ASK TO MODIFY / AVOID**, modification tips, and portion notes.
+2. **Restaurant planner** — search by name, paste a menu URL, paste menu text, or open a sample restaurant → each dish **SAFE / ASK TO MODIFY / AVOID**, modification tips, and portion notes.
 
 Built with **Vite + React + TypeScript**. FODMAP knowledge is a curated **local** database (Monash-style elimination cutoffs) so the app works offline after load.
 
@@ -61,8 +61,8 @@ src/
 ## Known limitations
 
 - Local KB is curated, not exhaustive — unknown ingredients marked UNKNOWN; verify with Monash.
-- OCR quality depends on lighting/focus; paste text when OCR is messy.
-- No live restaurant menu API — paste menus or use samples.
+- OCR uses multi-region scan + a quality gate that rejects packaging gibberish; photograph the INGREDIENTS line tightly or paste text.
+- Restaurant search + URL fetch are best-effort via public CORS proxies; many sites block scraping — paste text when fetch fails. Samples remain available.
 - Ratings target elimination, not post-challenge personalization.
 - Not a substitute for clinical care.
 

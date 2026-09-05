@@ -9,15 +9,22 @@ export function LabelResults({ analysis }: { analysis: LabelAnalysis }) {
         <OverallBadge verdict={analysis.overall} />
         <p>{analysis.summary}</p>
         {analysis.alliumAlert && (
-          <p className="allium-alert">🧄 Onion / garlic alert — skip this product during elimination.</p>
+          <p className="allium-alert">Garlic / onion alert — skip this product during elimination.</p>
+        )}
+        {analysis.ocrQuality === 'poor' && (
+          <p className="allium-alert">Low OCR confidence — edit ingredient text before relying on this.</p>
         )}
       </div>
 
-      <ul className="ingredient-list">
-        {sorted.map((ing, idx) => (
-          <IngredientCard key={`${ing.raw}-${idx}`} ing={ing} />
-        ))}
-      </ul>
+      {sorted.length === 0 ? (
+        <p className="muted">No ingredient tokens parsed. Check the editable text above.</p>
+      ) : (
+        <ul className="ingredient-list">
+          {sorted.map((ing, idx) => (
+            <IngredientCard key={`${ing.raw}-${idx}`} ing={ing} />
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
