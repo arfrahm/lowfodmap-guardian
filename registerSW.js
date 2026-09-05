@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/lowfodmap-guardian/sw.js', { scope: '/lowfodmap-guardian/' })})}
